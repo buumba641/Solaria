@@ -4,31 +4,48 @@ import fetch from "node-fetch";
 const router = express.Router();
 
 // POST /api/check-fraud { tokenAddress }
-router.post("/check-fraud", async (req, res) => {
-  const { tokenAddress } = req.body ?? {};
-  if (!tokenAddress) return res.status(400).json({ error: "tokenAddress is required" });
-
-  let rugcheck = null;
+router.post("/check-fraud", async (req, res, next) => {
   try {
-    const r = await fetch(`https://api.rugcheck.xyz/v1/tokens/${tokenAddress}/report`);
-    rugcheck = await r.json();
-  } catch {
-    rugcheck = { error: "rugcheck unavailable" };
+    const { tokenAddress } = req.body ?? {};
+    if (!tokenAddress) return res.status(400).json({ error: "tokenAddress is required" });
+
+    // Basic format check: Solana addresses are 32-44 base58 chars
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(tokenAddress)) {
+      return res.status(400).json({ error: "Invalid token address format" });
+    }
+
+    // RugCheck report (best-effort)
+    let rugcheck = null;
+    try {
+      const r = await fetch(
+        `https://api.rugcheck.xyz/v1/tokens/${encodeURIComponent(tokenAddress)}/report`
+      );
+      if (r.ok) {
+        rugcheck = await r.json();
+      } else {
+        rugcheck = { error: "rugcheck returned non-OK", status: r.status };
+      }
+    } catch (e) {
+      rugcheck = { error: "rugcheck unavailable", details: String(e) };
+    }
+
+    const risk = rugcheck?.score ?? null;
+
+    res.json({
+      tokenAddress,
+      rugcheck,
+      riskLevel:
+        risk == null ? "UNKNOWN" : risk > 500 ? "HIGH" : risk > 200 ? "MEDIUM" : "LOW",
+      advice:
+        risk == null
+          ? "Could not fetch full report. Be cautious."
+          : risk > 500
+            ? "High risk flags. Avoid."
+            : "No major flags detected in this basic check."
+    });
+  } catch (e) {
+    next(e);
   }
-
-  const risk = rugcheck?.score ?? null;
-
-  res.json({
-    tokenAddress,
-    rugcheck,
-    riskLevel: risk == null ? "UNKNOWN" : risk > 500 ? "HIGH" : risk > 200 ? "MEDIUM" : "LOW",
-    advice:
-      risk == null
-        ? "Could not fetch full report. Be cautious."
-        : risk > 500
-          ? "High risk flags. Avoid."
-          : "No major flags detected in this basic check."
-  });
 });
 
 export default router;

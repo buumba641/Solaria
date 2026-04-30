@@ -3,24 +3,51 @@ import fetch from "node-fetch";
 
 const router = express.Router();
 
+// Simple in-memory cache to avoid CoinGecko rate limits
+let priceCache = { data: null, ts: 0 };
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
 // GET /api/token/performance?symbol=SOL
-router.get("/token/performance", async (req, res) => {
-  const symbol = String(req.query.symbol || "SOL").toUpperCase();
+router.get("/token/performance", async (req, res, next) => {
+  try {
+    const symbol = String(req.query.symbol || "SOL").toUpperCase();
 
-  if (symbol !== "SOL") return res.status(400).json({ error: "Demo supports SOL only (extend as needed)" });
+    if (symbol !== "SOL") {
+      return res.status(400).json({ error: "Demo supports SOL only (extend as needed)" });
+    }
 
-  const url =
-    "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
+    // Return cached data if fresh
+    if (priceCache.data && Date.now() - priceCache.ts < CACHE_TTL_MS) {
+      return res.json(priceCache.data);
+    }
 
-  const r = await fetch(url);
-  const j = await r.json();
-  const price = j?.solana?.usd;
+    const url = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd&include_24hr_change=true";
+    const r = await fetch(url);
 
-  res.json({
-    symbol,
-    priceUsd: price,
-    note: "Extend to store last_login price in app prefs or backend DB for % change."
-  });
+    if (!r.ok) {
+      // If rate-limited and we have stale cache, return it
+      if (priceCache.data) return res.json({ ...priceCache.data, cached: true });
+      return res.status(502).json({ error: "CoinGecko request failed", status: r.status });
+    }
+
+    const j = await r.json();
+    const price = j?.solana?.usd ?? null;
+    const change24h = j?.solana?.usd_24h_change ?? null;
+
+    const payload = {
+      symbol,
+      priceUsd: price,
+      change24hPercent: change24h ? Number(change24h.toFixed(2)) : null,
+      note: "Extend to store last_login price in app prefs or backend DB for custom % change."
+    };
+
+    priceCache = { data: payload, ts: Date.now() };
+    res.json(payload);
+  } catch (e) {
+    // On network error, return stale cache if available
+    if (priceCache.data) return res.json({ ...priceCache.data, cached: true });
+    next(e);
+  }
 });
 
 export default router;

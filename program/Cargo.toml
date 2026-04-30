@@ -1,5 +1,3 @@
 [workspace]
-members = [
-  "programs/*"
-]
+members = ["programs/solaria_program"]
 resolver = "2"

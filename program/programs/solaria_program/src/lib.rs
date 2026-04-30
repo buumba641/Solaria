@@ -1,17 +1,24 @@
 use anchor_lang::prelude::*;
 
-declare_id!("So1ar1a1111111111111111111111111111111111");
+// IMPORTANT: Replace this with your actual program ID after running:
+//   solana-keygen new -o target/deploy/solaria_program-keypair.json
+//   solana address -k target/deploy/solaria_program-keypair.json
+// Then paste the output here AND in Anchor.toml.
+declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
 #[program]
 pub mod solaria_program {
     use super::*;
 
+    /// Creates a new PaymentIntent on-chain.
+    /// Called by the merchant to generate a payment link.
     pub fn create_payment_intent(
         ctx: Context<CreatePaymentIntent>,
         amount: u64,
         description: String,
         intent_id: u64,
     ) -> Result<()> {
+        require!(amount > 0, SolariaError::InvalidAmount);
         require!(description.len() <= 140, SolariaError::DescriptionTooLong);
 
         let intent = &mut ctx.accounts.payment_intent;
@@ -32,6 +39,8 @@ pub mod solaria_program {
         Ok(())
     }
 
+    /// Settles a PaymentIntent after cross-chain payment is verified.
+    /// Only callable by the configured oracle.
     pub fn settle_payment(
         ctx: Context<SettlePayment>,
         intent_id: u64,
@@ -39,13 +48,21 @@ pub mod solaria_program {
         proof_hash: [u8; 32],
     ) -> Result<()> {
         require!(source_chain_tx.len() <= 200, SolariaError::SourceTxTooLong);
+        require!(!source_chain_tx.is_empty(), SolariaError::SourceTxEmpty);
 
         let intent = &mut ctx.accounts.payment_intent;
         require!(intent.intent_id == intent_id, SolariaError::IntentIdMismatch);
-        require!(intent.status == PaymentStatus::Pending, SolariaError::AlreadySettled);
+        require!(
+            intent.status == PaymentStatus::Pending,
+            SolariaError::AlreadySettled
+        );
 
         // Oracle-gated settlement: only the configured oracle pubkey may call.
-        require_keys_eq!(ctx.accounts.oracle.key(), ctx.accounts.config.oracle, SolariaError::UnauthorizedOracle);
+        require_keys_eq!(
+            ctx.accounts.oracle.key(),
+            ctx.accounts.config.oracle,
+            SolariaError::UnauthorizedOracle
+        );
 
         intent.status = PaymentStatus::Settled;
         intent.settled_source_chain_tx = source_chain_tx;
@@ -59,6 +76,7 @@ pub mod solaria_program {
         Ok(())
     }
 
+    /// Initializes the global config PDA. Can only be called once.
     pub fn init_config(ctx: Context<InitConfig>, oracle: Pubkey) -> Result<()> {
         let cfg = &mut ctx.accounts.config;
         cfg.admin = ctx.accounts.admin.key();
@@ -66,13 +84,22 @@ pub mod solaria_program {
         Ok(())
     }
 
+    /// Updates the oracle pubkey. Only callable by the admin.
     pub fn set_oracle(ctx: Context<SetOracle>, oracle: Pubkey) -> Result<()> {
         let cfg = &mut ctx.accounts.config;
-        require_keys_eq!(cfg.admin, ctx.accounts.admin.key(), SolariaError::UnauthorizedAdmin);
+        require_keys_eq!(
+            cfg.admin,
+            ctx.accounts.admin.key(),
+            SolariaError::UnauthorizedAdmin
+        );
         cfg.oracle = oracle;
         Ok(())
     }
 }
+
+// ---------------------------------------------------------------------------
+// Account structs (Anchor derives validation + deserialization)
+// ---------------------------------------------------------------------------
 
 #[derive(Accounts)]
 #[instruction(amount: u64, description: String, intent_id: u64)]
@@ -94,7 +121,7 @@ pub struct CreatePaymentIntent<'info> {
 
 #[derive(Accounts)]
 pub struct SettlePayment<'info> {
-    /// CHECK: oracle must sign; verified against config.oracle
+    /// Oracle signer — verified against config.oracle in the handler.
     pub oracle: Signer<'info>,
 
     #[account(
@@ -140,6 +167,10 @@ pub struct SetOracle<'info> {
     pub config: Account<'info, SolariaConfig>,
 }
 
+// ---------------------------------------------------------------------------
+// Data accounts
+// ---------------------------------------------------------------------------
+
 #[account]
 pub struct SolariaConfig {
     pub admin: Pubkey,
@@ -160,15 +191,15 @@ pub struct PaymentIntent {
     pub settled_proof_hash: [u8; 32],
 }
 impl PaymentIntent {
-    // conservative sizing: Anchor string = 4 + bytes
+    // Conservative sizing: Anchor string = 4 + bytes
     pub const MAX_SIZE: usize =
-        8 + // intent_id
-        32 + // merchant
-        8 + // amount
-        1 + // status enum
+        8 +       // intent_id
+        32 +      // merchant
+        8 +       // amount
+        1 +       // status enum
         (4 + 140) + // description
         (4 + 200) + // source tx
-        32; // proof hash
+        32;       // proof hash
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
@@ -176,6 +207,10 @@ pub enum PaymentStatus {
     Pending,
     Settled,
 }
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
 
 #[event]
 pub struct PaymentIntentCreated {
@@ -190,18 +225,26 @@ pub struct PaymentIntentSettled {
     pub merchant: Pubkey,
 }
 
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
+
 #[error_code]
 pub enum SolariaError {
-    #[msg("Description too long")]
+    #[msg("Description too long (max 140 chars)")]
     DescriptionTooLong,
-    #[msg("Source chain tx too long")]
+    #[msg("Source chain tx string too long (max 200 chars)")]
     SourceTxTooLong,
-    #[msg("Intent id mismatch")]
+    #[msg("Source chain tx must not be empty")]
+    SourceTxEmpty,
+    #[msg("Intent ID mismatch")]
     IntentIdMismatch,
-    #[msg("Already settled")]
+    #[msg("Payment intent already settled")]
     AlreadySettled,
-    #[msg("Unauthorized oracle")]
+    #[msg("Unauthorized oracle signer")]
     UnauthorizedOracle,
-    #[msg("Unauthorized admin")]
+    #[msg("Unauthorized admin signer")]
     UnauthorizedAdmin,
+    #[msg("Amount must be greater than zero")]
+    InvalidAmount,
 }

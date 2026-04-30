@@ -1,5 +1,10 @@
 import dotenv from "dotenv";
-dotenv.config();
+import { fileURLToPath } from "url";
+import path from "path";
+
+// Resolve .env relative to the backend root, not CWD
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 export const config = {
   port: Number(process.env.PORT ?? 8787),

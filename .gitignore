@@ -1,5 +1,7 @@
 node_modules
 backend/.env
+.env.*
+!.env.example
 .DS_Store
 .idea
 .gradle
@@ -7,3 +9,7 @@ backend/.env
 build
 dist
 target
+*.log
+test-ledger/
+*.so
+.anchor

@@ -8,7 +8,7 @@ const router = express.Router();
  * POST /api/elevenlabs/signed-url
  * Returns a short-lived signed websocket URL to connect to the ElevenLabs Conversational AI agent.
  */
-router.post("/signed-url", async (_req, res) => {
+router.post("/signed-url", async (_req, res, next) => {
   if (!config.elevenlabs.apiKey || !config.elevenlabs.agentId) {
     return res.status(400).json({ error: "Missing ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID" });
   }
@@ -31,7 +31,7 @@ router.post("/signed-url", async (_req, res) => {
     const data = await response.json();
     return res.json(data);
   } catch (e) {
-    return res.status(500).json({ error: "Failed to generate signed URL", details: String(e) });
+    next(e);
   }
 });
 

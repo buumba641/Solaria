@@ -3,10 +3,10 @@ seeds = false
 skip-lint = false
 
 [programs.devnet]
-solaria_program = "So1ar1a1111111111111111111111111111111111"
+solaria_program = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 
 [programs.mainnet]
-solaria_program = "So1ar1a1111111111111111111111111111111111"
+solaria_program = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 
 [provider]
 cluster = "devnet"
