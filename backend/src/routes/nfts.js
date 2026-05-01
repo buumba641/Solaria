@@ -1,5 +1,6 @@
 import express from "express";
 import fetch from "node-fetch";
+import { requireApiKey } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ const MOCK_COLLECTIONS = [
 ];
 
 // GET /api/nfts/top
-router.get("/nfts/top", async (_req, res, next) => {
+router.get("/nfts/top", requireApiKey, async (_req, res, next) => {
   try {
     const r = await fetch("https://api-mainnet.magiceden.dev/v2/collections/popular?limit=5", {
       headers: { "Accept": "application/json" },

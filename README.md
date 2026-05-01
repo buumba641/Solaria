@@ -107,6 +107,12 @@ Backend: `backend/.env`
 - `ELEVENLABS_API_KEY=`
 - `ELEVENLABS_AGENT_ID=`
 - `LIFI_BASE_URL=https://li.quest/v1`
+- `ADMIN_API_KEY=` (required for protected endpoints; send as `x-api-key`)
+- `CORS_ORIGINS=` (comma-separated allowed origins)
+- `RATE_LIMIT_WINDOW_MS=900000`
+- `RATE_LIMIT_MAX=100`
+- `SENSITIVE_RATE_LIMIT_MAX=20`
+- `PUBLIC_DEMO_MODE=false` (when `true`, `x-api-key` checks are bypassed)
 
 ---
 
@@ -115,17 +121,17 @@ Backend: `backend/.env`
 | Method | Endpoint | Body / Params | Description |
 |--------|----------|---------------|-------------|
 | `GET` | `/health` | — | Health check |
-| `POST` | `/api/elevenlabs/signed-url` | — | Get ElevenLabs WebSocket signed URL |
-| `GET` | `/api/token/performance` | `?symbol=SOL` | Token price + 24h change (cached) |
+| `POST` | `/api/elevenlabs/signed-url` | — | Get ElevenLabs WebSocket signed URL (requires `x-api-key`) |
+| `GET` | `/api/token/performance` | `?symbol=SOL` | Token price + 24h change (cached, requires `x-api-key`) |
 | `GET` | `/api/balance` | `?wallet=<pubkey>` | SOL balance for a wallet |
-| `POST` | `/api/check-fraud` | `{ tokenAddress }` | RugCheck fraud/risk report |
-| `POST` | `/api/prepare-transfer` | `{ from, to, amountSol }` | Build unsigned SOL transfer tx |
-| `POST` | `/api/confirm-transfer` | `{ signedTxBase64 }` | Broadcast a signed transaction |
-| `GET` | `/api/nfts/top` | — | Top NFT collections (w/ mock fallback) |
-| `POST` | `/api/payment-link` | `{ merchant, amount, description? }` | Create PaymentIntent on-chain (unsigned tx) |
-| `POST` | `/api/settle-intent` | `{ intentId, merchantAddress, sourceChainTx, proofHash? }` | Oracle settles a PaymentIntent |
-| `POST` | `/api/top-up/quote` | `{ fromChain, toChain, fromToken, toToken, amount, ... }` | LI.FI cross-chain quote |
-| `GET` | `/api/top-up/status` | `?txHash=<hash>` | LI.FI cross-chain tx status |
+| `POST` | `/api/check-fraud` | `{ tokenAddress }` | RugCheck fraud/risk report (requires `x-api-key`) |
+| `POST` | `/api/prepare-transfer` | `{ from, to, amountSol }` | Build unsigned SOL transfer tx (requires `x-api-key`) |
+| `POST` | `/api/confirm-transfer` | `{ signedTxBase64, commitment? }` + `?wait=true` | Broadcast a signed transaction; optionally wait for confirmation (requires `x-api-key`) |
+| `GET` | `/api/nfts/top` | — | Top NFT collections (requires `x-api-key`) |
+| `POST` | `/api/payment-link` | `{ merchant, amount, description? }` | Create PaymentIntent on-chain (requires `x-api-key`) |
+| `POST` | `/api/settle-intent` | `{ intentId, merchantAddress, sourceChainTx, proofHash? }` | Oracle settles a PaymentIntent (requires `x-api-key`) |
+| `POST` | `/api/top-up/quote` | `{ fromChain, toChain, fromToken, toToken, amount, ... }` | LI.FI cross-chain quote (requires `x-api-key`) |
+| `GET` | `/api/top-up/status` | `?txHash=<hash>` | LI.FI cross-chain tx status (requires `x-api-key`) |
 
 ---
 

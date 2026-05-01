@@ -1,8 +1,25 @@
 import express from "express";
 import fetch from "node-fetch";
 import { config } from "../config.js";
+import { requireApiKey } from "../middleware/auth.js";
+import { validateBody, validateQuery, z } from "../middleware/validate.js";
 
 const router = express.Router();
+
+const quoteSchema = z.object({
+  fromChain: z.string().min(1),
+  toChain: z.string().min(1),
+  fromToken: z.string().min(1),
+  toToken: z.string().min(1),
+  amount: z.union([z.string(), z.number()]),
+  fromAddress: z.string().optional(),
+  toAddress: z.string().optional(),
+  slippage: z.union([z.string(), z.number()]).optional()
+});
+
+const statusSchema = z.object({
+  txHash: z.string().min(1)
+});
 
 /** Safely parse JSON, returning null on failure */
 function safeJsonParse(text) {
@@ -17,24 +34,14 @@ function safeJsonParse(text) {
  * POST /api/top-up/quote
  * Body: { fromChain, toChain, fromToken, toToken, amount, fromAddress?, toAddress?, slippage? }
  */
-router.post("/top-up/quote", async (req, res, next) => {
+router.post(
+  "/top-up/quote",
+  requireApiKey,
+  validateBody(quoteSchema),
+  async (req, res, next) => {
   try {
-    const {
-      fromChain,
-      toChain,
-      fromToken,
-      toToken,
-      amount,
-      fromAddress,
-      toAddress,
-      slippage
-    } = req.body ?? {};
-
-    if (!fromChain || !toChain || !fromToken || !toToken || !amount) {
-      return res.status(400).json({
-        error: "Expected { fromChain, toChain, fromToken, toToken, amount }"
-      });
-    }
+    const { fromChain, toChain, fromToken, toToken, amount, fromAddress, toAddress, slippage } =
+      req.body;
 
     const qs = new URLSearchParams({
       fromChain: String(fromChain),
@@ -72,10 +79,13 @@ router.post("/top-up/quote", async (req, res, next) => {
 /**
  * GET /api/top-up/status?txHash=<hash>
  */
-router.get("/top-up/status", async (req, res, next) => {
+router.get(
+  "/top-up/status",
+  requireApiKey,
+  validateQuery(statusSchema),
+  async (req, res, next) => {
   try {
-    const txHash = String(req.query.txHash || "");
-    if (!txHash) return res.status(400).json({ error: "txHash is required" });
+    const { txHash } = req.query;
 
     const url = `${config.lifi.baseUrl}/status?txHash=${encodeURIComponent(txHash)}`;
 

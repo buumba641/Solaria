@@ -8,9 +8,30 @@ import {
 import { getConnection, getOracleKeypair } from "../solana.js";
 import { config } from "../config.js";
 import crypto from "crypto";
-import bs58 from "bs58";
+import rateLimit from "express-rate-limit";
+import { requireApiKey } from "../middleware/auth.js";
+import { validateBody, z } from "../middleware/validate.js";
 
 const router = express.Router();
+const sensitiveLimiter = rateLimit({
+  windowMs: config.rateLimit.windowMs,
+  max: config.rateLimit.sensitiveMax,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const paymentLinkSchema = z.object({
+  merchant: z.string().min(1),
+  amount: z.number().positive(),
+  description: z.string().max(140).optional()
+});
+
+const settleSchema = z.object({
+  intentId: z.union([z.string(), z.number()]),
+  merchantAddress: z.string().min(1),
+  sourceChainTx: z.string().min(1),
+  proofHash: z.string().optional()
+});
 
 /** Validate a base58 public key string. Returns PublicKey or null. */
 function tryPublicKey(value) {
@@ -63,13 +84,13 @@ function anchorDiscriminator(methodName) {
  * create_payment_intent on the Solaria Anchor program.
  * Returns the intent PDA address and the unsigned transaction for the merchant to sign.
  */
-router.post("/payment-link", async (req, res, next) => {
+router.post(
+  "/payment-link",
+  requireApiKey,
+  validateBody(paymentLinkSchema),
+  async (req, res, next) => {
   try {
-    const { merchant, amount, description } = req.body ?? {};
-
-    if (!merchant || !amount) {
-      return res.status(400).json({ error: "Expected { merchant, amount, description? }" });
-    }
+    const { merchant, amount, description } = req.body;
 
     const merchantPk = tryPublicKey(merchant);
     if (!merchantPk) return res.status(400).json({ error: "Invalid merchant address" });
@@ -87,8 +108,8 @@ router.post("/payment-link", async (req, res, next) => {
     const programId = tryPublicKey(config.solana.programId);
     if (!programId) return res.status(500).json({ error: "Invalid SOLARIA_PROGRAM_ID in config" });
 
-    // Generate a unique intent ID from current timestamp + random bytes
-    const intentId = Date.now();
+    // Generate a unique intent ID from timestamp + short random suffix
+    const intentId = Date.now() * 1000 + crypto.randomInt(0, 1000);
 
     // Derive PDA
     const [intentPda, _bump] = deriveIntentPda(programId, merchantPk, intentId);
@@ -149,14 +170,18 @@ router.post("/payment-link", async (req, res, next) => {
  * Called by the backend oracle after verifying a cross-chain payment.
  * Builds, signs (with oracle key), and broadcasts the settle_payment instruction.
  */
-router.post("/settle-intent", async (req, res, next) => {
+router.post(
+  "/settle-intent",
+  requireApiKey,
+  sensitiveLimiter,
+  validateBody(settleSchema),
+  async (req, res, next) => {
   try {
-    const { intentId, merchantAddress, sourceChainTx, proofHash } = req.body ?? {};
+    const { intentId, merchantAddress, sourceChainTx, proofHash } = req.body;
 
-    if (!intentId || !merchantAddress || !sourceChainTx) {
-      return res.status(400).json({
-        error: "Expected { intentId, merchantAddress, sourceChainTx, proofHash? }"
-      });
+    const normalizedIntentId = Number(intentId);
+    if (!Number.isFinite(normalizedIntentId)) {
+      return res.status(400).json({ error: "intentId must be a number" });
     }
 
     const merchantPk = tryPublicKey(merchantAddress);
@@ -176,7 +201,7 @@ router.post("/settle-intent", async (req, res, next) => {
       return res.status(500).json({ error: "Oracle keypair not configured", details: e.message });
     }
 
-    const [intentPda] = deriveIntentPda(programId, merchantPk, intentId);
+    const [intentPda] = deriveIntentPda(programId, merchantPk, normalizedIntentId);
     const [configPda] = deriveConfigPda(programId);
 
     const conn = getConnection();
@@ -185,7 +210,7 @@ router.post("/settle-intent", async (req, res, next) => {
     // discriminator + intent_id (u64 LE) + source_chain_tx (borsh string) + proof_hash ([u8; 32])
     const discriminator = anchorDiscriminator("settle_payment");
     const intentIdBuf = Buffer.alloc(8);
-    intentIdBuf.writeBigUInt64LE(BigInt(intentId));
+    intentIdBuf.writeBigUInt64LE(BigInt(normalizedIntentId));
 
     const srcTxBytes = Buffer.from(String(sourceChainTx).slice(0, 200), "utf8");
     const srcTxLenBuf = Buffer.alloc(4);
@@ -223,7 +248,7 @@ router.post("/settle-intent", async (req, res, next) => {
 
     res.json({
       signature: sig,
-      intentId,
+      intentId: normalizedIntentId,
       intentPda: intentPda.toBase58(),
       status: "settled"
     });

@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import { config } from "./config.js";
 
 import elevenlabsRouter from "./routes/elevenlabs.js";
@@ -11,8 +12,35 @@ import lifiRouter from "./routes/lifi.js";
 import paymentRouter from "./routes/payment.js";
 
 const app = express();
-app.use(cors());
+app.set("trust proxy", 1);
+
+if (config.isProd && config.publicDemoMode) {
+  console.error("[FATAL] PUBLIC_DEMO_MODE must be disabled in production.");
+  process.exit(1);
+}
+
+const corsOptions = config.cors.origins.length
+  ? {
+      origin: (origin, callback) => {
+        if (!origin || config.cors.origins.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(new Error("Not allowed by CORS"));
+      }
+    }
+  : { origin: true };
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: "2mb" }));
+
+const apiLimiter = rateLimit({
+  windowMs: config.rateLimit.windowMs,
+  max: config.rateLimit.max,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+app.use("/api", apiLimiter);
 
 // Request logging
 app.use((req, _res, next) => {
@@ -30,10 +58,21 @@ app.use("/api", nftsRouter);
 app.use("/api", lifiRouter);
 app.use("/api", paymentRouter);
 
+// Handle CORS rejections explicitly
+app.use((err, _req, res, next) => {
+  if (err && err.message === "Not allowed by CORS") {
+    return res.status(403).json({ error: "CORS blocked" });
+  }
+  return next(err);
+});
+
 // Global error handler — catches unhandled errors from async route handlers
 app.use((err, _req, res, _next) => {
   console.error("[ERROR]", err.stack || err);
-  res.status(500).json({ error: "Internal server error", message: err.message });
+  const payload = config.isProd
+    ? { error: "Internal server error" }
+    : { error: "Internal server error", message: err.message };
+  res.status(500).json(payload);
 });
 
 app.listen(config.port, () => {

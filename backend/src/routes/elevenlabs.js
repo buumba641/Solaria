@@ -1,14 +1,22 @@
 import express from "express";
 import fetch from "node-fetch";
 import { config } from "../config.js";
+import rateLimit from "express-rate-limit";
+import { requireApiKey } from "../middleware/auth.js";
 
 const router = express.Router();
+const sensitiveLimiter = rateLimit({
+  windowMs: config.rateLimit.windowMs,
+  max: config.rateLimit.sensitiveMax,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 /**
  * POST /api/elevenlabs/signed-url
  * Returns a short-lived signed websocket URL to connect to the ElevenLabs Conversational AI agent.
  */
-router.post("/signed-url", async (_req, res, next) => {
+router.post("/signed-url", requireApiKey, sensitiveLimiter, async (_req, res, next) => {
   if (!config.elevenlabs.apiKey || !config.elevenlabs.agentId) {
     return res.status(400).json({ error: "Missing ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID" });
   }

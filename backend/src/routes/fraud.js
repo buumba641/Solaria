@@ -1,13 +1,18 @@
 import express from "express";
 import fetch from "node-fetch";
+import { requireApiKey } from "../middleware/auth.js";
+import { validateBody, z } from "../middleware/validate.js";
 
 const router = express.Router();
 
+const bodySchema = z.object({
+  tokenAddress: z.string().min(1)
+});
+
 // POST /api/check-fraud { tokenAddress }
-router.post("/check-fraud", async (req, res, next) => {
+router.post("/check-fraud", requireApiKey, validateBody(bodySchema), async (req, res, next) => {
   try {
-    const { tokenAddress } = req.body ?? {};
-    if (!tokenAddress) return res.status(400).json({ error: "tokenAddress is required" });
+    const { tokenAddress } = req.body;
 
     // Basic format check: Solana addresses are 32-44 base58 chars
     if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(tokenAddress)) {

@@ -7,6 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 export const config = {
+  isProd: process.env.NODE_ENV === "production",
+  publicDemoMode: process.env.PUBLIC_DEMO_MODE === "true",
   port: Number(process.env.PORT ?? 8787),
 
   solana: {
@@ -26,5 +28,22 @@ export const config = {
 
   lifi: {
     baseUrl: process.env.LIFI_BASE_URL || "https://li.quest/v1"
+  },
+
+  auth: {
+    apiKey: process.env.ADMIN_API_KEY || ""
+  },
+
+  cors: {
+    origins: (process.env.CORS_ORIGINS || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+  },
+
+  rateLimit: {
+    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 15 * 60 * 1000),
+    max: Number(process.env.RATE_LIMIT_MAX ?? 100),
+    sensitiveMax: Number(process.env.SENSITIVE_RATE_LIMIT_MAX ?? 20)
   }
 };

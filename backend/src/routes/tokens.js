@@ -1,14 +1,24 @@
 import express from "express";
 import fetch from "node-fetch";
+import { requireApiKey } from "../middleware/auth.js";
+import { validateQuery, z } from "../middleware/validate.js";
 
 const router = express.Router();
+
+const querySchema = z.object({
+  symbol: z.string().optional()
+});
 
 // Simple in-memory cache to avoid CoinGecko rate limits
 let priceCache = { data: null, ts: 0 };
 const CACHE_TTL_MS = 30_000; // 30 seconds
 
 // GET /api/token/performance?symbol=SOL
-router.get("/token/performance", async (req, res, next) => {
+router.get(
+  "/token/performance",
+  requireApiKey,
+  validateQuery(querySchema),
+  async (req, res, next) => {
   try {
     const symbol = String(req.query.symbol || "SOL").toUpperCase();
 
