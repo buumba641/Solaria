@@ -27,6 +27,11 @@ class MarketViewModel @Inject constructor(
     private val cacheDao: PriceCacheDao
 ) : ViewModel() {
 
+    companion object {
+        /** Cache entries older than this are considered stale and re-fetched. */
+        private const val CACHE_EXPIRY_MS = 5 * 60 * 1_000L  // 5 minutes
+    }
+
     private val _state = MutableStateFlow(MarketUiState())
     val state: StateFlow<MarketUiState> = _state.asStateFlow()
 
@@ -52,7 +57,7 @@ class MarketViewModel @Inject constructor(
 
             // Check cache first (< 5 min)
             val cached = cacheDao.getBySymbol(symbol)
-            if (cached != null && System.currentTimeMillis() - cached.updatedAtMs < 300_000) {
+            if (cached != null && System.currentTimeMillis() - cached.updatedAtMs < CACHE_EXPIRY_MS) {
                 val history = cached.historyJson?.let {
                     val type = object : TypeToken<List<PricePoint>>() {}.type
                     gson.fromJson<List<PricePoint>>(it, type)

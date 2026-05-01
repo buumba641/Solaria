@@ -149,7 +149,9 @@ fun ChatScreen(
                                     title = "Confirm Transaction",
                                     subtitle = description,
                                     onSuccess = {
-                                        // In a real app, sign with MWA here; use placeholder
+                                        // TODO: Replace with real MWA signing:
+                                        //   val scenario = transact(activity) { it.signTransactions(...) }
+                                        //   val signedTxBase64 = Base64.encode(scenario.signedPayloads[0])
                                         viewModel.approvePending("SIGNED_TX_PLACEHOLDER")
                                     },
                                     onFailure = { viewModel.rejectPending() }
@@ -174,6 +176,8 @@ fun ChatScreen(
                                         title = "Confirm Transaction",
                                         subtitle = pending.description,
                                         onSuccess = {
+                                            // TODO: Replace with real MWA signing:
+                                            //   transact(activity) { it.signTransactions(...) }
                                             viewModel.approvePending("SIGNED_TX_PLACEHOLDER")
                                         },
                                         onFailure = { viewModel.rejectPending() }
