@@ -13,3 +13,11 @@ target
 test-ledger/
 *.so
 .anchor
+# Android build artifacts
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+*.apk
+*.aab
+*.keystore

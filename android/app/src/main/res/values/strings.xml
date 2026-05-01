@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Solaria</string>
+    <string name="tab_chat">Chat</string>
+    <string name="tab_market">Market</string>
+    <string name="tab_wallet">Wallet</string>
+    <string name="chat_hint">Ask about your portfolio…</string>
+    <string name="mic_start">Start voice input</string>
+    <string name="mic_stop">Stop recording</string>
+    <string name="approve_transfer">Approve Transfer</string>
+    <string name="cancel">Cancel</string>
+    <string name="connect_wallet">Connect Wallet</string>
+    <string name="disconnect_wallet">Disconnect Wallet</string>
+    <string name="biometric_title">Confirm Transaction</string>
+    <string name="biometric_subtitle">Authenticate to approve this action</string>
+    <string name="biometric_negative">Use PIN</string>
+    <string name="market_search_hint">Search token symbol or mint…</string>
+    <string name="top_nfts">Top NFT Collections</string>
+    <string name="token_performance">Token Performance</string>
+    <string name="settings">Settings</string>
+    <string name="enable_biometric">Require biometric for approvals</string>
+    <string name="wallet_address">Wallet Address</string>
+    <string name="sol_balance">SOL Balance</string>
+    <string name="transaction_history">Transaction History</string>
+</resources>

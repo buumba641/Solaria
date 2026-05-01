@@ -1,0 +1,288 @@
+package com.solaria.app.ui.wallet
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.solaria.app.ui.theme.SolariaGreen
+import com.solaria.app.ui.theme.SolariaGreenDark
+import com.solaria.app.ui.theme.SolariaGreenLight
+
+/**
+ * Wallet & Settings screen.
+ *
+ * Integrates with Solana Mobile Wallet Adapter for connect/disconnect.
+ * Styled after the mifos-pay "account" screen with a green header card
+ * and settings list below.
+ *
+ * MWA signing is handled through the companion [MwaLauncher] utility
+ * (launched from ChatScreen for transaction approval).
+ */
+@Composable
+fun WalletScreen(viewModel: WalletViewModel = hiltViewModel()) {
+    val state by viewModel.state.collectAsState()
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+    ) {
+        // ── Wallet header card (mifos-pay account card style) ─
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(listOf(SolariaGreen, SolariaGreenDark))
+                )
+                .padding(24.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Avatar
+                Surface(
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.2f),
+                    modifier = Modifier.size(64.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.AccountBalanceWallet,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+
+                if (state.isConnected) {
+                    Text(
+                        text = state.walletAddress.let { addr ->
+                            if (addr.length > 12)
+                                "${addr.take(6)}…${addr.takeLast(6)}"
+                            else addr
+                        },
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp
+                    )
+                    // Balance display
+                    if (state.isLoading) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        state.balance?.let { bal ->
+                            Text(
+                                text = "${"%.4f".format(bal.sol)} SOL",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 28.sp
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        "Wallet not connected",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 16.sp
+                    )
+                }
+            }
+        }
+
+        // ── SPL Token list ────────────────────────────────────
+        state.balance?.tokens?.takeIf { it.isNotEmpty() }?.let { tokens ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "SPL Tokens",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    tokens.forEach { token ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(token.symbol, fontSize = 14.sp)
+                            Text(
+                                "${"%.4f".format(token.amount)} ${token.symbol}",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        // ── Connect / Disconnect button ───────────────────────
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "Solana Wallet",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                if (state.isConnected) {
+                    // Refresh balance
+                    OutlinedButton(
+                        onClick = { viewModel.refreshBalance() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Refresh Balance")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { viewModel.onWalletDisconnected() },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(Icons.Filled.LinkOff, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Disconnect Wallet")
+                    }
+                } else {
+                    // Demo wallet connect (real app would launch MWA here)
+                    var demoAddress by remember { mutableStateOf("") }
+                    OutlinedTextField(
+                        value = demoAddress,
+                        onValueChange = { demoAddress = it },
+                        label = { Text("Wallet address (demo)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            if (demoAddress.isNotBlank()) {
+                                viewModel.onWalletConnected(demoAddress)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = SolariaGreen)
+                    ) {
+                        Icon(Icons.Filled.Link, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Connect via MWA")
+                    }
+                }
+            }
+        }
+
+        // ── Settings / Security ───────────────────────────────
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Security", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Fingerprint, null, tint = SolariaGreen)
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text("Biometric Approval", fontSize = 14.sp)
+                            Text(
+                                "Require fingerprint/face for transfers",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = state.biometricEnabled,
+                        onCheckedChange = { viewModel.toggleBiometric(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = SolariaGreen,
+                            checkedTrackColor = SolariaGreenLight
+                        )
+                    )
+                }
+            }
+        }
+
+        // ── App info ──────────────────────────────────────────
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("About", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Spacer(Modifier.height(8.dp))
+                InfoRow("App", "Solaria v1.0")
+                InfoRow("Network", "Solana Devnet")
+                InfoRow("Program", "TODO_AFTER_DEPLOY")
+            }
+        }
+
+        // ── Error ──────────────────────────────────────────────
+        if (state.error != null) {
+            Snackbar(
+                modifier = Modifier.padding(16.dp),
+                action = {
+                    TextButton(onClick = { viewModel.dismissError() }) { Text("Dismiss") }
+                }
+            ) { Text("Error: ${state.error}") }
+        }
+
+        Spacer(Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}

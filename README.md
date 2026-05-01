@@ -85,14 +85,56 @@ anchor run init-config -- --oracle <ORACLE_PUBKEY>
 ```
 
 ### 4) Android
-Create the Android Studio project inside `android/` (Compose, minSdk 26+, target 31+).
-Then add:
-- Solana Mobile Wallet Adapter dependencies
-- WalletConnect (v2)
-- Retrofit/OkHttp for backend calls
-- ExoPlayer (or Android audio track) for voice playback
 
-(We keep Android scaffolding light in repo to avoid massive auto-generated files.)
+The Android project lives in `android/`.  It is a standard Gradle project; open it directly in **Android Studio Hedgehog or newer**.
+
+#### Prerequisites
+- Android Studio Hedgehog+ (API 35 SDK installed)
+- JDK 17
+- Physical Android device or emulator with API 26+
+
+#### Build & run
+```bash
+cd android
+# debug build
+./gradlew :app:assembleDebug
+
+# install on connected device
+./gradlew :app:installDebug
+```
+
+#### Configuration
+Edit `android/app/build.gradle.kts` `defaultConfig` block (or add a `local.properties` override) to set:
+```
+BASE_URL  = "http://<your-backend-host>:8787/"
+API_KEY   = "<your x-api-key value>"
+```
+
+For a physical device connecting to a local backend replace `10.0.2.2` with your machine's LAN IP.
+
+#### Wallet Connect (EVM cross-chain)
+Create a WalletConnect Cloud project at https://cloud.walletconnect.com and add your **Project ID** to
+`android/app/src/main/res/values/strings.xml` as `walletconnect_project_id`.
+
+#### App screens
+| Screen | Description |
+|--------|-------------|
+| **Chat** (default) | LLM bot – voice/text input, bot bubbles, inline transfer-approval cards |
+| **Market** | Token performance (7-day chart) + top NFT collections grid |
+| **Wallet** | MWA connect/disconnect, SOL + SPL balances, biometric toggle |
+
+#### Key dependencies
+| Library | Purpose |
+|---------|---------|
+| Jetpack Compose + Material 3 | UI |
+| Hilt | Dependency injection |
+| Retrofit + OkHttp | REST API calls |
+| Room | Local caching (chat history, price data) |
+| Media3 / ExoPlayer | TTS audio playback |
+| AndroidX BiometricPrompt | Fingerprint / PIN approval |
+| Solana Mobile Wallet Adapter | Wallet signing |
+| WalletConnect Web3Modal | EVM signing for LI.FI cross-chain |
+| Coil | Image loading (NFT thumbnails) |
 
 ---
 
@@ -122,16 +164,54 @@ Backend: `backend/.env`
 |--------|----------|---------------|-------------|
 | `GET` | `/health` | — | Health check |
 | `POST` | `/api/elevenlabs/signed-url` | — | Get ElevenLabs WebSocket signed URL (requires `x-api-key`) |
-| `GET` | `/api/token/performance` | `?symbol=SOL` | Token price + 24h change (cached, requires `x-api-key`) |
-| `GET` | `/api/balance` | `?wallet=<pubkey>` | SOL balance for a wallet |
-| `POST` | `/api/check-fraud` | `{ tokenAddress }` | RugCheck fraud/risk report (requires `x-api-key`) |
+| `POST` | `/api/chat` | `{ message, walletAddress, conversationId? }` | LLM bot – returns `{ reply, audioUrl?, action? }` where `action.type` is `TRANSFER`, `CROSS_CHAIN`, or absent (requires `x-api-key`) |
+| `GET` | `/api/token/performance` | `?symbol=SOL&days=7` | Token price + 24h change + optional 7-day history array (cached, requires `x-api-key`) |
+| `GET` | `/api/balance` | `?wallet=<pubkey>` | SOL balance + SPL token list for a wallet |
 | `POST` | `/api/prepare-transfer` | `{ from, to, amountSol }` | Build unsigned SOL transfer tx (requires `x-api-key`) |
 | `POST` | `/api/confirm-transfer` | `{ signedTxBase64, commitment? }` + `?wait=true` | Broadcast a signed transaction; optionally wait for confirmation (requires `x-api-key`) |
 | `GET` | `/api/nfts/top` | — | Top NFT collections (requires `x-api-key`) |
+| `POST` | `/api/lifi/quote` | `{ fromChain, toChain, fromToken, toToken, amount, fromAddress }` | LI.FI cross-chain quote → returns `{ requestId, walletConnectUri, estimate }` (requires `x-api-key`) |
+| `GET` | `/api/lifi/status` | `?txHash=<hash>` | LI.FI cross-chain tx status – `PENDING \| DONE \| FAILED` (requires `x-api-key`) |
+| `POST` | `/api/lifi/settle` | `{ requestId }` | Trigger Solana devnet settlement after EVM tx completes (requires `x-api-key`) |
 | `POST` | `/api/payment-link` | `{ merchant, amount, description? }` | Create PaymentIntent on-chain (requires `x-api-key`) |
 | `POST` | `/api/settle-intent` | `{ intentId, merchantAddress, sourceChainTx, proofHash? }` | Oracle settles a PaymentIntent (requires `x-api-key`) |
-| `POST` | `/api/top-up/quote` | `{ fromChain, toChain, fromToken, toToken, amount, ... }` | LI.FI cross-chain quote (requires `x-api-key`) |
-| `GET` | `/api/top-up/status` | `?txHash=<hash>` | LI.FI cross-chain tx status (requires `x-api-key`) |
+| `POST` | `/api/top-up/quote` | `{ fromChain, toChain, fromToken, toToken, amount, ... }` | Legacy LI.FI cross-chain quote alias (requires `x-api-key`) |
+| `GET` | `/api/top-up/status` | `?txHash=<hash>` | Legacy LI.FI status alias (requires `x-api-key`) |
+
+### `/api/chat` action payloads
+
+When the LLM decides to initiate a transaction it attaches an `action` object:
+
+**TRANSFER**
+```json
+{
+  "action": {
+    "type": "TRANSFER",
+    "payload": {
+      "unsignedTxBase64": "...",
+      "to": "<recipient pubkey>",
+      "amountSol": 0.5,
+      "feeSol": 0.000005
+    }
+  }
+}
+```
+
+**CROSS_CHAIN**
+```json
+{
+  "action": {
+    "type": "CROSS_CHAIN",
+    "lifiRequest": {
+      "requestId": "abc123",
+      "walletConnectUri": "wc:...",
+      "fromChain": "ETH",
+      "fromToken": "ETH",
+      "amount": "0.01"
+    }
+  }
+}
+```
 
 ---
 
