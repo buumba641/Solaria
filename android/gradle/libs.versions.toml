@@ -10,10 +10,8 @@ retrofitVersion = "2.11.0"
 okhttp = "4.12.0"
 roomVersion = "2.6.1"
 media3 = "1.4.0"
-biometric = "1.1.0"
 coroutines = "1.8.1"
 coil = "2.6.0"
-walletConnect = "2.31.1"
 
 [libraries]
 # AndroidX / Compose
@@ -30,8 +28,6 @@ compose-material-icons = { group = "androidx.compose.material", name = "material
 compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 
-# Biometric
-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 
 # Hilt DI
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
@@ -59,8 +55,6 @@ coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutin
 # Coil (image loading)
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 
-# WalletConnect
-walletconnect-modal = { group = "com.walletconnect", name = "web3modal", version.ref = "walletConnect" }
 
 # Solana Mobile Wallet Adapter
 solana-mwa-clientlib = { group = "com.solanamobile", name = "mobile-wallet-adapter-clientlib-ktx", version = "2.0.3" }

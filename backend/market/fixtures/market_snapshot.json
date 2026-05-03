@@ -1,0 +1,21 @@
+{
+  "token": {
+    "symbol": "SOL",
+    "price": 142.15,
+    "change_24h": 3.4,
+    "history_7d": [
+      132.2,
+      134.1,
+      136.7,
+      138.3,
+      140.9,
+      141.6,
+      142.15
+    ]
+  },
+  "top_nfts": [
+    {"name": "Mad Lads", "floor": 145.2, "volume_24h": 3200.5},
+    {"name": "Tensorian", "floor": 62.8, "volume_24h": 1480.2},
+    {"name": "SMB", "floor": 89.4, "volume_24h": 2205.1}
+  ]
+}

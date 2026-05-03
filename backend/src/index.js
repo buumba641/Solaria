@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import { config } from "./config.js";
 
 import elevenlabsRouter from "./routes/elevenlabs.js";
+import chatRouter from "./routes/chat.js";
 import solanaRouter from "./routes/solana.js";
 import tokensRouter from "./routes/tokens.js";
 import fraudRouter from "./routes/fraud.js";
@@ -51,6 +52,7 @@ app.use((req, _res, next) => {
 app.get("/health", (_req, res) => res.json({ ok: true, name: "solaria-backend" }));
 
 app.use("/api/elevenlabs", elevenlabsRouter);
+app.use("/api", chatRouter);
 app.use("/api", solanaRouter);
 app.use("/api", tokensRouter);
 app.use("/api", fraudRouter);

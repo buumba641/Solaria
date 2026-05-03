@@ -1,0 +1,8 @@
+{
+  "payment_id": "pay_6f12a",
+  "status": "PENDING",
+  "amount_sol": 0.45,
+  "merchant": "Solaria Coffee",
+  "customer": "Alex Carter",
+  "card_last4": "xxx"
+}

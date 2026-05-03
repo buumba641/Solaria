@@ -221,20 +221,20 @@ fun WalletScreen(viewModel: WalletViewModel = hiltViewModel()) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Fingerprint, null, tint = SolariaGreen)
+                        Icon(Icons.Filled.Lock, null, tint = SolariaGreen)
                         Spacer(Modifier.width(8.dp))
                         Column {
-                            Text("Biometric Approval", fontSize = 14.sp)
+                            Text("PIN Approval", fontSize = 14.sp)
                             Text(
-                                "Require fingerprint/face for transfers",
+                                "Require PIN entry for transfers",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                     Switch(
-                        checked = state.biometricEnabled,
-                        onCheckedChange = { viewModel.toggleBiometric(it) },
+                        checked = state.pinEnabled,
+                        onCheckedChange = { viewModel.togglePin(it) },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = SolariaGreen,
                             checkedTrackColor = SolariaGreenLight

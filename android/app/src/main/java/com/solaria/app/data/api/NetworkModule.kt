@@ -52,6 +52,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideSolariaApiService(retrofit: Retrofit): SolariaApiService =
-        retrofit.create(SolariaApiService::class.java)
+    fun provideSolariaApiService(
+        retrofit: Retrofit,
+        mockService: MockSolariaApiService
+    ): SolariaApiService {
+        val useMock = true // Set to false to use real backend
+        return if (useMock) mockService else retrofit.create(SolariaApiService::class.java)
+    }
 }

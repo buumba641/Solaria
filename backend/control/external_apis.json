@@ -1,0 +1,38 @@
+{
+  "ai": {
+    "name": "NoahAI",
+    "included": false,
+    "key": "PASTE_API_KEY_HERE",
+    "file": "backend/control/external_apis.json"
+  },
+  "voice": {
+    "name": "ElevenLabs",
+    "included": false,
+    "key": "PASTE_API_KEY_HERE",
+    "file": "backend/control/external_apis.json"
+  },
+  "market": {
+    "name": "MarketData",
+    "included": false,
+    "key": "PASTE_API_KEY_HERE",
+    "file": "backend/control/external_apis.json"
+  },
+  "wallet": {
+    "name": "Solana RPC",
+    "included": false,
+    "key": "PASTE_API_KEY_HERE",
+    "file": "backend/control/external_apis.json"
+  },
+  "payment": {
+    "name": "LI.FI",
+    "included": false,
+    "key": "PASTE_API_KEY_HERE",
+    "file": "backend/control/external_apis.json"
+  },
+  "profile": {
+    "name": "Profile Service",
+    "included": false,
+    "key": "PASTE_API_KEY_HERE",
+    "file": "backend/control/external_apis.json"
+  }
+}

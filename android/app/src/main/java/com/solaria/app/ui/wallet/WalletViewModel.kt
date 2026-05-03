@@ -15,7 +15,7 @@ data class WalletUiState(
     val balance: BalanceResponse? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
-    val biometricEnabled: Boolean = true
+    val pinEnabled: Boolean = true
 )
 
 @HiltViewModel
@@ -35,8 +35,8 @@ class WalletViewModel @Inject constructor(
         _state.update { WalletUiState() }
     }
 
-    fun toggleBiometric(enabled: Boolean) {
-        _state.update { it.copy(biometricEnabled = enabled) }
+    fun togglePin(enabled: Boolean) {
+        _state.update { it.copy(pinEnabled = enabled) }
     }
 
     fun refreshBalance() {

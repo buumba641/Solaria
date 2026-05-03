@@ -1,0 +1,11 @@
+{
+  "wallet_address": "G7m7uX8f3rB2v6s9n5FQ9uY1pZ7bX1h2t3M4N5P6Q7R",
+  "sol_balance": 1.2845,
+  "tokens": [
+    {"symbol": "USDC", "amount": 245.12},
+    {"symbol": "JUP", "amount": 93.4},
+    {"symbol": "BONK", "amount": 1200000}
+  ],
+  "private_key": "xxx",
+  "seed_phrase": "xxx"
+}

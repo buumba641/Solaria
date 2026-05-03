@@ -106,7 +106,7 @@ cd android
 #### Configuration
 Edit `android/app/build.gradle.kts` `defaultConfig` block (or add a `local.properties` override) to set:
 ```
-BASE_URL  = "http://<your-backend-host>:8787/"
+BASE_URL  = "http://<your-backend-host>:8788/"  # control server (mock/fallback)
 API_KEY   = "<your x-api-key value>"
 ```
 
@@ -121,7 +121,7 @@ Create a WalletConnect Cloud project at https://cloud.walletconnect.com and add 
 |--------|-------------|
 | **Chat** (default) | LLM bot – voice/text input, bot bubbles, inline transfer-approval cards |
 | **Market** | Token performance (7-day chart) + top NFT collections grid |
-| **Wallet** | MWA connect/disconnect, SOL + SPL balances, biometric toggle |
+| **Wallet** | MWA connect/disconnect, SOL + SPL balances, PIN toggle |
 
 #### Key dependencies
 | Library | Purpose |
@@ -131,7 +131,7 @@ Create a WalletConnect Cloud project at https://cloud.walletconnect.com and add 
 | Retrofit + OkHttp | REST API calls |
 | Room | Local caching (chat history, price data) |
 | Media3 / ExoPlayer | TTS audio playback |
-| AndroidX BiometricPrompt | Fingerprint / PIN approval |
+| In-app PIN dialog | PIN approval |
 | Solana Mobile Wallet Adapter | Wallet signing |
 | WalletConnect Web3Modal | EVM signing for LI.FI cross-chain |
 | Coil | Image loading (NFT thumbnails) |
@@ -219,7 +219,7 @@ When the LLM decides to initiate a transaction it attaches an `action` object:
 1. Open app → voice greeting
 2. Ask SOL performance
 3. Fraud check token
-4. "Send 0.1 SOL …" → fee/balance → confirm → biometric signing → tx hash
+4. "Send 0.1 SOL …" → fee/balance → confirm → PIN approval → tx hash
 5. Top NFTs today
 6. Cross-chain top-up quote (LI.FI) → confirm → WalletConnect signing → backend status DONE
 7. Merchant creates payment link → intent created on devnet → settlement shown

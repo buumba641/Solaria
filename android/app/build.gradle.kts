@@ -9,10 +9,11 @@ plugins {
 android {
     namespace = "com.solaria.app"
     compileSdk = 35
+    buildToolsVersion = "35.0.0"
 
     defaultConfig {
         applicationId = "com.solaria.app"
-        minSdk = 26
+        minSdk = 24
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
@@ -20,7 +21,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Backend base URL – override in local.properties or CI environment
-        buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8787/\"")
+        buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8788/\"")
         buildConfigField("String", "API_KEY", "\"\"")
     }
 
@@ -67,9 +68,6 @@ dependencies {
     // Navigation
     implementation(libs.navigation.compose)
 
-    // Biometric
-    implementation(libs.biometric)
-
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
@@ -95,9 +93,6 @@ dependencies {
 
     // Coil
     implementation(libs.coil.compose)
-
-    // WalletConnect
-    implementation(libs.walletconnect.modal)
 
     // Solana MWA
     implementation(libs.solana.mwa.clientlib)

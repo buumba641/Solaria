@@ -49,7 +49,12 @@ router.get("/balance", validateQuery(balanceQuerySchema), async (req, res, next)
 
     const conn = getConnection();
     const lamports = await conn.getBalance(pubkey, "confirmed");
-    res.json({ wallet, sol: lamports / LAMPORTS_PER_SOL, lamports });
+    res.json({
+      wallet,
+      sol: lamports / LAMPORTS_PER_SOL,
+      lamports,
+      tokens: []
+    });
   } catch (e) {
     next(e);
   }
@@ -97,10 +102,13 @@ router.post(
 
     const fee = await conn.getFeeForMessage(tx.compileMessage(), "confirmed");
     const txBase64 = tx.serialize({ requireAllSignatures: false }).toString("base64");
+    const feeLamports = fee.value ?? null;
+    const feeSol = feeLamports != null ? feeLamports / LAMPORTS_PER_SOL : null;
 
     res.json({
-      txBase64,
-      feeLamports: fee.value ?? null,
+      unsignedTxBase64: txBase64,
+      feeSol,
+      feeLamports,
       lastValidBlockHeight
     });
   } catch (e) {
@@ -123,7 +131,7 @@ router.post(
     const raw = Buffer.from(signedTxBase64, "base64");
     const tx = Transaction.from(raw);
     const sig = await conn.sendRawTransaction(raw, { skipPreflight: false });
-    if (!wait) return res.json({ signature: sig });
+    if (!wait) return res.json({ txHash: sig, status: "SUBMITTED", signature: sig });
 
     const latest = await conn.getLatestBlockhash(commitment || "confirmed");
     const confirmation = await conn.confirmTransaction(
@@ -134,7 +142,8 @@ router.post(
       },
       commitment || "confirmed"
     );
-    res.json({ signature: sig, confirmation });
+    const status = confirmation.value.err ? "FAILED" : "CONFIRMED";
+    res.json({ txHash: sig, status, signature: sig, confirmation });
   } catch (e) {
     next(e);
   }

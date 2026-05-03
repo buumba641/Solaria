@@ -30,15 +30,7 @@ function safeJsonParse(text) {
   }
 }
 
-/**
- * POST /api/top-up/quote
- * Body: { fromChain, toChain, fromToken, toToken, amount, fromAddress?, toAddress?, slippage? }
- */
-router.post(
-  "/top-up/quote",
-  requireApiKey,
-  validateBody(quoteSchema),
-  async (req, res, next) => {
+async function handleQuote(req, res, next) {
   try {
     const { fromChain, toChain, fromToken, toToken, amount, fromAddress, toAddress, slippage } =
       req.body;
@@ -74,16 +66,9 @@ router.post(
   } catch (e) {
     next(e);
   }
-});
+}
 
-/**
- * GET /api/top-up/status?txHash=<hash>
- */
-router.get(
-  "/top-up/status",
-  requireApiKey,
-  validateQuery(statusSchema),
-  async (req, res, next) => {
+async function handleStatus(req, res, next) {
   try {
     const { txHash } = req.query;
 
@@ -105,6 +90,21 @@ router.get(
   } catch (e) {
     next(e);
   }
+}
+
+// POST /api/lifi/quote (primary)
+router.post("/lifi/quote", requireApiKey, validateBody(quoteSchema), handleQuote);
+
+// GET /api/lifi/status (primary)
+router.get("/lifi/status", requireApiKey, validateQuery(statusSchema), handleStatus);
+
+// POST /api/lifi/settle (control server compatible placeholder)
+router.post("/lifi/settle", requireApiKey, async (_req, res) => {
+  res.json({ status: "mock" });
 });
+
+// Legacy aliases
+router.post("/top-up/quote", requireApiKey, validateBody(quoteSchema), handleQuote);
+router.get("/top-up/status", requireApiKey, validateQuery(statusSchema), handleStatus);
 
 export default router;

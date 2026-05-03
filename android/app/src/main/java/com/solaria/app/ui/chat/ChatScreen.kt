@@ -33,13 +33,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.navigation.NavController
 import com.solaria.app.ui.components.ApprovalCard
-import com.solaria.app.ui.components.showBiometricPrompt
+import com.solaria.app.ui.components.PinApprovalDialog
 import com.solaria.app.ui.theme.SolariaGreen
 import com.solaria.app.ui.theme.SolariaGreenLight
 import kotlinx.coroutines.launch
@@ -52,15 +51,18 @@ fun ChatScreen(
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val activity = context as? FragmentActivity
     val messages by viewModel.messages.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val approvalState by viewModel.approvalState.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
     var isListening by remember { mutableStateOf(false) }
+    var pinDialogSubtitle by remember { mutableStateOf<String?>(null) }
+    var pinInput by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val approvalPin = "1234"
 
     // ExoPlayer for TTS audio playback
     val exoPlayer = remember { ExoPlayer.Builder(context).build() }
@@ -128,6 +130,42 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            if (pinDialogSubtitle != null) {
+                PinApprovalDialog(
+                    title = "Enter PIN",
+                    subtitle = pinDialogSubtitle ?: "",
+                    pin = pinInput,
+                    error = pinError,
+                    onPinChange = { next ->
+                        pinInput = next.filter { it.isDigit() }.take(6)
+                        pinError = null
+                    },
+                    onConfirm = {
+                        if (pinInput.length < 4) {
+                            pinError = "Enter a 4-digit PIN"
+                            return@PinApprovalDialog
+                        }
+                        if (pinInput != approvalPin) {
+                            pinError = "Incorrect PIN"
+                            return@PinApprovalDialog
+                        }
+                        pinDialogSubtitle = null
+                        pinInput = ""
+                        pinError = null
+                        // TODO: Replace with real MWA signing:
+                        //   val scenario = transact(activity) { it.signTransactions(...) }
+                        //   val signedTxBase64 = Base64.encode(scenario.signedPayloads[0])
+                        viewModel.approvePending("SIGNED_TX_PLACEHOLDER")
+                    },
+                    onDismiss = {
+                        pinDialogSubtitle = null
+                        pinInput = ""
+                        pinError = null
+                        viewModel.rejectPending()
+                    }
+                )
+            }
+
             // ── Message list ──────────────────────────────────
             LazyColumn(
                 state = listState,
@@ -142,21 +180,10 @@ fun ChatScreen(
                 items(messages, key = { it.id }) { msg ->
                     MessageBubble(
                         message = msg,
-                        onApprove = { actionType, description ->
-                            if (activity != null) {
-                                showBiometricPrompt(
-                                    activity = activity,
-                                    title = "Confirm Transaction",
-                                    subtitle = description,
-                                    onSuccess = {
-                                        // TODO: Replace with real MWA signing:
-                                        //   val scenario = transact(activity) { it.signTransactions(...) }
-                                        //   val signedTxBase64 = Base64.encode(scenario.signedPayloads[0])
-                                        viewModel.approvePending("SIGNED_TX_PLACEHOLDER")
-                                    },
-                                    onFailure = { viewModel.rejectPending() }
-                                )
-                            }
+                        onApprove = { _, description ->
+                            pinDialogSubtitle = description
+                            pinInput = ""
+                            pinError = null
                         },
                         onReject = { viewModel.rejectPending() }
                     )
@@ -170,19 +197,9 @@ fun ChatScreen(
                             actionType = pending.actionType,
                             description = pending.description,
                             onApprove = {
-                                if (activity != null) {
-                                    showBiometricPrompt(
-                                        activity = activity,
-                                        title = "Confirm Transaction",
-                                        subtitle = pending.description,
-                                        onSuccess = {
-                                            // TODO: Replace with real MWA signing:
-                                            //   transact(activity) { it.signTransactions(...) }
-                                            viewModel.approvePending("SIGNED_TX_PLACEHOLDER")
-                                        },
-                                        onFailure = { viewModel.rejectPending() }
-                                    )
-                                }
+                                pinDialogSubtitle = pending.description
+                                pinInput = ""
+                                pinError = null
                             },
                             onReject = { viewModel.rejectPending() },
                             modifier = Modifier.padding(horizontal = 4.dp)

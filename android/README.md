@@ -12,7 +12,7 @@ A **Kotlin/Jetpack Compose** native Android app — the frontend for the Solaria
 |--------|-------|-------------|
 | **Chat / Bot** | `chat` | Main screen. LLM-powered assistant with voice + text input, bot bubbles, inline transaction approval cards. |
 | **Market** | `market` | Token performance search with 7-day price chart + Top NFT collections grid. |
-| **Wallet** | `wallet` | Solana Mobile Wallet Adapter connect/disconnect, SOL & SPL balances, biometric toggle. |
+| **Wallet** | `wallet` | Solana Mobile Wallet Adapter connect/disconnect, SOL & SPL balances, PIN toggle. |
 
 ## Tech Stack
 
@@ -24,7 +24,7 @@ A **Kotlin/Jetpack Compose** native Android app — the frontend for the Solaria
 | Caching | Room (chat history + price cache) |
 | Audio | Media3 / ExoPlayer (ElevenLabs TTS) |
 | Voice input | Android `SpeechRecognizer` |
-| Biometric | AndroidX `BiometricPrompt` |
+| PIN approval | In-app PIN dialog |
 | Wallet signing | Solana Mobile Wallet Adapter |
 | EVM cross-chain | WalletConnect Web3Modal |
 | Images | Coil |
@@ -44,10 +44,11 @@ Requires Android Studio **Hedgehog or newer** and **JDK 17**.
 
 In `app/build.gradle.kts` `defaultConfig`:
 ```kotlin
-buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8787/\"")
+buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8788/\"")
 buildConfigField("String", "API_KEY",  "\"<your-api-key>\"")
 ```
 Replace `10.0.2.2` with your machine's LAN IP when using a physical device.
+Port `8788` is the control server (mock/fallback API).
 
 ## Transaction Approval Flow
 
@@ -55,7 +56,7 @@ Replace `10.0.2.2` with your machine's LAN IP when using a physical device.
 2. Backend LLM calls `GET /api/balance`, `GET /api/token/performance`, or `POST /api/prepare-transfer` as needed.
 3. If a transfer is required the response includes `action.type = "TRANSFER"` with an unsigned tx.
 4. The app shows an **ApprovalCard** inside the bot bubble.
-5. User taps **Approve** → `BiometricPrompt` (fingerprint / face / PIN).
+5. User taps **Approve** → in-app PIN dialog.
 6. On success → `MobileWalletAdapter.signTransaction(unsignedTx)`.
 7. Signed tx sent to `POST /api/confirm-transfer`.
 8. Bot confirms with tx hash.
@@ -65,6 +66,6 @@ Replace `10.0.2.2` with your machine's LAN IP when using a physical device.
 - Retrofit/OkHttp (backend)
 - WalletConnect v2 / Web3Modal (EVM signing for LI.FI cross-chain)
 - Media3 / ExoPlayer (ElevenLabs voice playback)
-- AndroidX BiometricPrompt (transaction approval)
+- In-app PIN dialog (transaction approval)
 - Room (chat + price caching)
 
