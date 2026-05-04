@@ -67,6 +67,8 @@ dependencies {
 
     // Navigation
     implementation(libs.navigation.compose)
+    implementation(libs.material)
+
 
     // Hilt
     implementation(libs.hilt.android)
@@ -93,7 +95,4 @@ dependencies {
 
     // Coil
     implementation(libs.coil.compose)
-
-    // Solana MWA
-    implementation(libs.solana.mwa.clientlib)
 }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material3.*
@@ -48,6 +49,7 @@ import java.util.Locale
 @Composable
 fun ChatScreen(
     navController: NavController,
+    initialMessage: String? = null,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -63,6 +65,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val approvalPin = "1234"
+    var didSendInitial by remember(initialMessage) { mutableStateOf(false) }
 
     // ExoPlayer for TTS audio playback
     val exoPlayer = remember { ExoPlayer.Builder(context).build() }
@@ -87,6 +90,14 @@ fun ChatScreen(
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
     }
 
+    LaunchedEffect(initialMessage) {
+        val message = initialMessage?.trim().orEmpty()
+        if (message.isNotBlank() && !didSendInitial) {
+            didSendInitial = true
+            viewModel.sendMessage(message)
+        }
+    }
+
     // Play audio when a bot message with audioUrl arrives
     LaunchedEffect(messages) {
         val lastBot = messages.lastOrNull { it.role == "bot" && it.audioUrl != null }
@@ -109,18 +120,23 @@ fun ChatScreen(
                     .statusBarsPadding()
                     .padding(16.dp)
             ) {
-                Column {
-                    Text(
-                        text = "Solaria",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp
-                    )
-                    Text(
-                        text = "Your Solana AI assistant",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 13.sp
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Filled.ArrowBack, "Back", tint = Color.White)
+                    }
+                    Column {
+                        Text(
+                            text = "Solaria AI",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp
+                        )
+                        Text(
+                            text = "Offline-first assistant • All data local",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
         }
@@ -426,13 +442,13 @@ private fun WelcomePlaceholder() {
     ) {
         Text("👋", fontSize = 40.sp)
         Text(
-            text = "Hi! I'm your Solana assistant.",
+            text = "Hi! I'm your offline Solana assistant.",
             fontWeight = FontWeight.SemiBold,
             fontSize = 18.sp,
             color = MaterialTheme.colorScheme.onSurface
         )
         Text(
-            text = "Ask me about your balance, SOL performance, top NFTs, or say \"Send 0.1 SOL to…\"",
+            text = "I work fully offline using your local data. Ask me about your balance, prices, NFTs, or say \"Send 0.1 SOL to…\"",
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

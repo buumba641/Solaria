@@ -11,12 +11,6 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = uri("https://jitpack.io") }
-        maven {
-            url = uri("https://maven.pkg.github.com/solana-mobile/mobile-wallet-adapter")
-            content {
-                includeGroup("com.solanamobile")
-            }
-        }
     }
 }
 

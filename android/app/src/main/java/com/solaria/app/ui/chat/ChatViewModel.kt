@@ -2,15 +2,13 @@ package com.solaria.app.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.gson.Gson
-import com.solaria.app.data.api.SolariaApiService
-import com.solaria.app.data.db.ChatDao
 import com.solaria.app.data.db.ChatMessageEntity
 import com.solaria.app.data.models.*
+import com.solaria.app.data.repository.OfflineAiEngine
+import com.solaria.app.data.repository.SolariaRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.util.UUID
 import javax.inject.Inject
 
 data class UiChatMessage(
@@ -41,16 +39,15 @@ sealed class ApprovalState {
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
-    private val api: SolariaApiService,
-    private val chatDao: ChatDao
+    private val repo: SolariaRepository,
+    private val aiEngine: OfflineAiEngine
 ) : ViewModel() {
 
-    private val conversationId = UUID.randomUUID().toString()
-    private val gson = Gson()
+    private val conversationId = "solaria_main"
 
     // Persisted message flow from Room
     val messages: StateFlow<List<UiChatMessage>> =
-        chatDao.observeMessages(conversationId)
+        repo.observeChatMessages(conversationId)
             .map { entities -> entities.map { it.toUi() } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -60,65 +57,55 @@ class ChatViewModel @Inject constructor(
     private val _approvalState = MutableStateFlow<ApprovalState>(ApprovalState.None)
     val approvalState: StateFlow<ApprovalState> = _approvalState.asStateFlow()
 
-    // Currently connected wallet address (set from WalletScreen / MWA)
-    private val _walletAddress = MutableStateFlow("")
-    val walletAddress: StateFlow<String> = _walletAddress.asStateFlow()
-
-    fun setWalletAddress(address: String) { _walletAddress.value = address }
-
-    // ── Send a message ─────────────────────────────────────────
+    // ── Send a message (offline AI) ───────────────────────
     fun sendMessage(text: String) {
         if (text.isBlank()) return
         viewModelScope.launch {
             // Persist user message
-            chatDao.insert(
-                ChatMessageEntity(
-                    conversationId = conversationId,
-                    role = "user",
-                    text = text
-                )
+            repo.insertChatMessage(
+                ChatMessageEntity(conversationId = conversationId, role = "user", text = text)
             )
             _uiState.value = ChatUiState.Loading
+
             try {
-                val response = api.chat(
-                    ChatRequest(
-                        message = text,
-                        walletAddress = _walletAddress.value.ifBlank { "demo" },
-                        conversationId = conversationId
+                // Small delay for natural feel
+                kotlinx.coroutines.delay(600)
+
+                val response = aiEngine.generateResponse(text)
+
+                // Build action if the AI detected a transfer intent
+                val action = if (response.actionType == "TRANSFER" && response.actionAmount != null && response.actionTo != null) {
+                    BotAction(
+                        type = "TRANSFER",
+                        payload = TransactionPayload(
+                            unsignedTxBase64 = "offline_placeholder",
+                            to = response.actionTo,
+                            amountSol = response.actionAmount,
+                            feeSol = 0.000005
+                        )
                     )
-                )
+                } else null
+
                 // Persist bot reply
-                chatDao.insert(
+                repo.insertChatMessage(
                     ChatMessageEntity(
                         conversationId = conversationId,
                         role = "bot",
-                        text = response.reply,
-                        audioUrl = response.audioUrl,
-                        actionType = response.action?.type,
-                        actionPayloadJson = response.action?.payload?.let { gson.toJson(it) }
+                        text = response.text,
+                        actionType = action?.type
                     )
                 )
+
                 // Trigger approval flow if action requires it
-                response.action?.let { action ->
-                    when (action.type) {
-                        "TRANSFER" -> {
-                            val p = action.payload ?: return@let
-                            _approvalState.value = ApprovalState.Pending(
-                                actionType = "TRANSFER",
-                                description = "Send ${p.amountSol} SOL to ${p.to}",
-                                payload = p
-                            )
-                        }
-                        "CROSS_CHAIN" -> {
-                            val lifi = action.lifiRequest ?: return@let
-                            _approvalState.value = ApprovalState.Pending(
-                                actionType = "CROSS_CHAIN",
-                                description = "Cross-chain top-up of ${lifi.amount} ${lifi.fromToken} from ${lifi.fromChain}",
-                                lifiRequest = lifi
-                            )
-                        }
-                    }
+                if (action?.type == "TRANSFER") {
+                    val p = action.payload!!
+                    _approvalState.value = ApprovalState.Pending(
+                        actionType = "TRANSFER",
+                        description = "Send ${p.amountSol} SOL to ${p.to}",
+                        payload = p
+                    )
                 }
+
                 _uiState.value = ChatUiState.Idle
             } catch (e: Exception) {
                 _uiState.value = ChatUiState.Error(e.message ?: "Unknown error")
@@ -126,32 +113,36 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    // ── Approve a pending transaction ─────────────────────────
+    // ── Approve a pending transaction ─────────────────────
     fun approvePending(signedTxBase64: String) {
         val pending = (_approvalState.value as? ApprovalState.Pending) ?: return
         _approvalState.value = ApprovalState.Processing
         viewModelScope.launch {
             try {
-                if (pending.actionType == "TRANSFER") {
-                    val result = api.confirmTransfer(
-                        ConfirmTransferRequest(signedTxBase64 = signedTxBase64)
+                // Create a transaction in the DB
+                val wallet = repo.observeConnectedWallet().first()
+                if (wallet != null && pending.payload != null) {
+                    val tx = repo.createTransaction(
+                        fromAddress = wallet.address,
+                        toAddress = pending.payload.to,
+                        amountSol = pending.payload.amountSol,
+                        type = "SEND", paymentMethod = "DEVNET",
+                        description = "Send ${pending.payload.amountSol} SOL",
+                        isOffline = true // Will need network to actually broadcast
                     )
-                    val confirmText = "✅ Transaction confirmed. Hash: ${result.txHash}"
-                    chatDao.insert(
+                    repo.insertChatMessage(
                         ChatMessageEntity(
-                            conversationId = conversationId,
-                            role = "bot",
-                            text = confirmText
+                            conversationId = conversationId, role = "bot",
+                            text = "✅ Transaction queued. ID: ${tx.id.take(8)}…\nWill broadcast to Solana devnet when online."
                         )
                     )
                 }
                 _approvalState.value = ApprovalState.None
             } catch (e: Exception) {
                 _approvalState.value = ApprovalState.None
-                chatDao.insert(
+                repo.insertChatMessage(
                     ChatMessageEntity(
-                        conversationId = conversationId,
-                        role = "bot",
+                        conversationId = conversationId, role = "bot",
                         text = "❌ Transaction failed: ${e.message}"
                     )
                 )
@@ -162,10 +153,9 @@ class ChatViewModel @Inject constructor(
     fun rejectPending() {
         _approvalState.value = ApprovalState.None
         viewModelScope.launch {
-            chatDao.insert(
+            repo.insertChatMessage(
                 ChatMessageEntity(
-                    conversationId = conversationId,
-                    role = "bot",
+                    conversationId = conversationId, role = "bot",
                     text = "Transaction rejected by user."
                 )
             )
@@ -174,17 +164,11 @@ class ChatViewModel @Inject constructor(
 
     fun dismissError() { _uiState.value = ChatUiState.Idle }
 
-    // ── Helper ────────────────────────────────────────────────
+    // ── Helper ────────────────────────────────────────────
     private fun ChatMessageEntity.toUi() = UiChatMessage(
-        id = id,
-        role = role,
-        text = text,
-        audioUrl = audioUrl,
-        action = if (actionType != null && actionPayloadJson != null)
-            BotAction(
-                type = actionType,
-                payload = runCatching { gson.fromJson(actionPayloadJson, TransactionPayload::class.java) }.getOrNull()
-            )
+        id = id, role = role, text = text, audioUrl = audioUrl,
+        action = if (actionType != null)
+            BotAction(type = actionType, payload = null)
         else null,
         timestampMs = timestampMs
     )

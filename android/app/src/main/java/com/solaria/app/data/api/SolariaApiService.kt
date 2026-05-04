@@ -1,6 +1,5 @@
 package com.solaria.app.data.api
 
-import com.solaria.app.BuildConfig
 import com.solaria.app.data.models.*
 import retrofit2.http.*
 

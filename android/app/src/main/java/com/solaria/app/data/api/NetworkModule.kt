@@ -13,6 +13,12 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
+/**
+ * Network module — kept for future backend integration.
+ * Currently the app runs fully offline using Room DB + SolariaRepository.
+ * When FastAPI backend is ready, set useMock = false and the Retrofit
+ * service will be used for real API calls.
+ */
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
@@ -56,7 +62,11 @@ object NetworkModule {
         retrofit: Retrofit,
         mockService: MockSolariaApiService
     ): SolariaApiService {
-        val useMock = true // Set to false to use real backend
+        // App runs offline-first from Room DB via SolariaRepository.
+        // This mock service is kept as fallback for any ViewModel
+        // that still references the API service directly.
+        // Switch to false when FastAPI backend is ready.
+        val useMock = true
         return if (useMock) mockService else retrofit.create(SolariaApiService::class.java)
     }
 }

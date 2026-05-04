@@ -4,6 +4,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -13,395 +14,224 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.AsyncImage
-import com.solaria.app.data.models.NftCollection
-import com.solaria.app.data.models.PricePoint
-import com.solaria.app.data.models.TokenPerformanceResponse
-import com.solaria.app.ui.theme.CryptoGreen
-import com.solaria.app.ui.theme.CryptoPurple
-import com.solaria.app.ui.theme.CryptoRed
+import androidx.navigation.NavController
+import com.solaria.app.data.db.NftCollectionEntity
+import com.solaria.app.data.db.PriceCacheEntity
+import com.solaria.app.ui.components.AiChatEntryBar
+import com.solaria.app.ui.components.SyncStatusIndicator
 import com.solaria.app.ui.theme.SolariaGreen
-import java.text.NumberFormat
-import java.util.Locale
-import kotlin.math.max
-import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MarketScreen(viewModel: MarketViewModel = hiltViewModel()) {
+fun MarketScreen(
+    navController: NavController,
+    viewModel: MarketViewModel = hiltViewModel()
+) {
     val state by viewModel.state.collectAsState()
+    val listState = rememberLazyListState()
+    val isScrolling by remember { derivedStateOf { listState.isScrollInProgress } }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 16.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        // ── Header bar ──────────────────────────────────────
-        item {
-            Surface(
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Market Analysis",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp
-                    )
-                    Text(
-                        "Token performance & top NFTs",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 13.sp
-                    )
-                }
-            }
-        }
-
-        // ── Token search bar (Crypto-KMP search style) ──────
-        item {
-            var query by remember { mutableStateOf(state.searchQuery) }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = {
-                        query = it
-                        viewModel.onSearchQuery(it)
-                    },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Symbol or mint address…", fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Filled.Search, null) },
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { viewModel.searchToken(query) }),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = SolariaGreen,
-                        cursorColor = SolariaGreen
-                    )
-                )
-                IconButton(onClick = { viewModel.searchToken(query) }) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = SolariaGreen)
-                }
-            }
-        }
-
-        // ── Token performance card (Crypto-KMP style) ───────
-        item {
-            if (state.isLoading) {
-                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = SolariaGreen)
-                }
-            } else {
-                state.tokenData?.let { token ->
-                    TokenPerformanceCard(token = token)
-                }
-            }
-        }
-
-        // ── Error message ────────────────────────────────────
-        if (state.error != null) {
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(top = 16.dp, bottom = 140.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Filled.Warning, null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text(state.error ?: "", color = MaterialTheme.colorScheme.onErrorContainer)
+                    Text("Market", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("Live prices and demand insights", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            // Sync status
+            item {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SyncStatusIndicator(label = "Prices", syncAge = state.lastPriceSync)
+                    SyncStatusIndicator(label = "NFTs", syncAge = state.lastNftSync)
+                }
+            }
+
+            item { MarketInsightsCard() }
+            item { InventoryTrackerCard() }
+
+            // Search
+            item {
+                var query by remember { mutableStateOf(state.searchQuery) }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it; viewModel.onSearchQuery(it) },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Search token (SOL, BONK, JUP)", fontSize = 14.sp) },
+                        leadingIcon = { Icon(Icons.Filled.Search, null) },
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { viewModel.searchToken(query) }),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = SolariaGreen, cursorColor = SolariaGreen)
+                    )
+                }
+            }
+
+            // Token data
+            item {
+                if (state.isLoading) {
+                    Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = SolariaGreen)
+                    }
+                } else {
+                    state.tokenData?.let { TokenPerformanceCard(token = it) }
+                    state.error?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp), fontSize = 13.sp)
                     }
                 }
             }
-        }
 
-        // ── Top NFT collections header ───────────────────────
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "🖼  Top NFT Collections",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-        }
-
-        // ── NFT grid cards ────────────────────────────────────
-        if (state.nftCollections.isEmpty()) {
+            // NFT Collections
             item {
-                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = SolariaGreen)
-                }
+                Text("Top NFT collections", fontWeight = FontWeight.SemiBold, fontSize = 18.sp, modifier = Modifier.padding(horizontal = 16.dp))
             }
+            items(state.nftCollections) { nft -> NftCollectionCard(nft = nft) }
         }
 
-        items(state.nftCollections) { nft ->
-            NftCollectionCard(nft = nft)
+        AiChatEntryBar(
+            navController = navController,
+            isCollapsed = isScrolling,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+        )
+    }
+}
+
+@Composable
+private fun MarketInsightsCard() {
+    Surface(
+        modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+        tonalElevation = 4.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text("AI Market Insights", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+            }
+            Text("Rice demand up 18% today. Restock suggested soon.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
-// ──────────────────────────────────────────────────────────────
-// Token performance card – Crypto-KMP inspired design:
-// dark card, price + change chip, inline line chart
-// ──────────────────────────────────────────────────────────────
 @Composable
-private fun TokenPerformanceCard(token: TokenPerformanceResponse) {
-    val isPositive = token.change24h >= 0
-    val changeColor = if (isPositive) CryptoGreen else CryptoRed
-    val fmt = NumberFormat.getCurrencyInstance(Locale.US)
+private fun InventoryTrackerCard() {
+    Surface(
+        modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Live Inventory", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            InventoryRow("Tomatoes", "Low", 0.2f)
+            InventoryRow("Palm oil", "Healthy", 0.72f)
+        }
+    }
+}
 
+@Composable
+private fun InventoryRow(name: String, status: String, fill: Float) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(name, fontWeight = FontWeight.SemiBold)
+            Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        LinearProgressIndicator(
+            progress = { fill },
+            color = SolariaGreen,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun TokenPerformanceCard(token: PriceCacheEntity) {
+    val isPositive = token.change24h >= 0
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            // Symbol + price row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        token.symbol,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    token.mint?.let {
-                        Text(
-                            it.take(8) + "…",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        fmt.format(token.price),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    // Change chip
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = changeColor.copy(alpha = 0.15f)
-                    ) {
-                        Text(
-                            text = "${if (isPositive) "▲" else "▼"} ${String.format("%.2f", kotlin.math.abs(token.change24h))}%",
-                            color = changeColor,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(token.symbol, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Text("${"$%.2f".format(token.price)}", fontWeight = FontWeight.Bold, fontSize = 20.sp)
             }
-
-            Spacer(Modifier.height(16.dp))
-
-            // 7-day price chart (Compose Canvas line chart)
-            token.history?.takeIf { it.size >= 2 }?.let { history ->
-                Text(
-                    "7-Day Price",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                LineChart(
-                    pricePoints = history,
-                    lineColor = if (isPositive) CryptoGreen else CryptoRed,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp)
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Stats row (volume + market cap)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                token.volume24h?.let {
-                    StatChip(label = "Vol 24h", value = formatLargeNumber(it))
-                }
-                token.marketCap?.let {
-                    StatChip(label = "Mkt Cap", value = formatLargeNumber(it))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatChip(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface)
-    }
-}
-
-// ──────────────────────────────────────────────────────────────
-// Simple Compose Canvas line chart (Crypto-KMP inspired)
-// ──────────────────────────────────────────────────────────────
-@Composable
-private fun LineChart(
-    pricePoints: List<PricePoint>,
-    lineColor: Color,
-    modifier: Modifier = Modifier
-) {
-    Canvas(modifier = modifier) {
-        val prices = pricePoints.map { it.price }
-        val minP = prices.min()
-        val maxP = prices.max()
-        val range = if (maxP == minP) 1.0 else (maxP - minP)
-        val step = size.width / (prices.size - 1).toFloat()
-
-        val points = prices.mapIndexed { i, p ->
-            Offset(
-                x = i * step,
-                y = size.height - ((p - minP) / range * size.height).toFloat()
+            Text(
+                text = "${if (isPositive) "+" else ""}${"%.2f".format(token.change24h)}%",
+                color = if (isPositive) SolariaGreen else MaterialTheme.colorScheme.error,
+                fontSize = 14.sp, fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Updated: ${formatAge(token.updatedAtMs)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-
-        // Fill area under curve
-        val path = Path().apply {
-            moveTo(points.first().x, size.height)
-            points.forEach { lineTo(it.x, it.y) }
-            lineTo(points.last().x, size.height)
-            close()
-        }
-        drawPath(path, color = lineColor.copy(alpha = 0.15f))
-
-        // Draw line
-        for (i in 0 until points.size - 1) {
-            drawLine(
-                color = lineColor,
-                start = points[i],
-                end = points[i + 1],
-                strokeWidth = 3f,
-                cap = StrokeCap.Round
-            )
-        }
-        // Data point dots
-        points.forEach {
-            drawCircle(color = lineColor, radius = 4f, center = it)
-        }
     }
 }
 
-// ──────────────────────────────────────────────────────────────
-// NFT Collection card – mifos-pay item card style
-// ──────────────────────────────────────────────────────────────
 @Composable
-private fun NftCollectionCard(nft: NftCollection) {
-    val isPositive = (nft.change24h ?: 0.0) >= 0
-    val changeColor = if (isPositive) CryptoGreen else CryptoRed
-
+private fun NftCollectionCard(nft: NftCollectionEntity) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(2.dp)
+        elevation = CardDefaults.cardElevation(1.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Collection image
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = CryptoPurple.copy(alpha = 0.15f),
-                modifier = Modifier.size(56.dp)
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(48.dp)
             ) {
-                if (nft.image != null) {
-                    AsyncImage(
-                        model = nft.image,
-                        contentDescription = nft.name,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        Icons.Filled.Image,
-                        contentDescription = null,
-                        tint = CryptoPurple,
-                        modifier = Modifier.padding(12.dp)
-                    )
+                Box(contentAlignment = Alignment.Center) {
+                    Text(nft.name.take(1), fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 }
             }
-
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    nft.name,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    nft.symbol,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(nft.name, fontWeight = FontWeight.SemiBold)
+                Text(nft.symbol, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-
             Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "◎ ${String.format("%.2f", nft.floorPrice)}",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Text("SOL ${nft.floorPrice}", fontWeight = FontWeight.Bold)
                 nft.change24h?.let {
                     Text(
-                        text = "${if (isPositive) "▲" else "▼"} ${String.format("%.1f", kotlin.math.abs(it))}%",
+                        "${if (it >= 0) "+" else ""}${"%.1f".format(it)}%",
                         fontSize = 12.sp,
-                        color = changeColor,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                nft.volume24h?.let {
-                    Text(
-                        text = "Vol: ${formatLargeNumber(it)}",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (it >= 0) SolariaGreen else MaterialTheme.colorScheme.error
                     )
                 }
             }
@@ -409,9 +239,12 @@ private fun NftCollectionCard(nft: NftCollection) {
     }
 }
 
-private fun formatLargeNumber(value: Double): String = when {
-    value >= 1_000_000_000 -> "${"%.1f".format(value / 1_000_000_000)}B"
-    value >= 1_000_000     -> "${"%.1f".format(value / 1_000_000)}M"
-    value >= 1_000         -> "${"%.1f".format(value / 1_000)}K"
-    else                   -> "${"%.2f".format(value)}"
+private fun formatAge(timestampMs: Long): String {
+    val diff = System.currentTimeMillis() - timestampMs
+    return when {
+        diff < 60_000 -> "Just now"
+        diff < 3_600_000 -> "${diff / 60_000}m ago"
+        diff < 86_400_000 -> "${diff / 3_600_000}h ago"
+        else -> "${diff / 86_400_000}d ago"
+    }
 }

@@ -21,3 +21,8 @@ android/local.properties
 *.apk
 *.aab
 *.keystore
+.venv/
+**/__pycache__/
+**/*.pyc
+*.hprof
+android/java_pid*.hprof
